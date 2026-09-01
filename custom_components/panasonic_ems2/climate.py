@@ -181,6 +181,14 @@ class PanasonicClimate(PanasonicBaseEntity, ClimateEntity):
             rng = self.client.get_range(self.device_gwid, CLIMATE_OPERATING_MODE)
             available_modes = CLIMATE_AVAILABLE_MODES
 
+        if not rng:
+            # the backend no longer returns the CommandList used to build
+            # the range, so fall back to always showing on/off/cool/heat
+            # for air conditioners instead of hiding hvac modes entirely
+            if self._device_type == DEVICE_TYPE_CLIMATE:
+                return hvac_modes + [HVACMode.COOL, HVACMode.HEAT]
+            return hvac_modes
+
         for mode, value in available_modes.items():
             if value >= 0:
                 for _, value2 in rng.items():
