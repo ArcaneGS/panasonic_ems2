@@ -298,6 +298,14 @@ class PanasonicClimate(PanasonicBaseEntity, ClimateEntity):
             available_fan_modes = CLIMATE_AVAILABLE_FAN_MODES
 
         rng = self.client.get_range(self.device_gwid, fan_mode)
+        if not rng:
+            # the backend no longer returns the CommandList used to build
+            # the range, so fall back to a common fan speed set for air
+            # conditioners instead of leaving the fan mode list empty
+            if self._device_type == DEVICE_TYPE_CLIMATE:
+                return ["Auto", "1", "2", "3", "4"]
+            return modes
+
         if "Max" in rng:
             max = rng.get("Max", 1)
 
