@@ -419,6 +419,9 @@ class PanasonicSmartHome(object):
                 self._devices_info[gwid]["ModelType"],
                 response["devices"]
             )
+            _LOGGER.info(f"Synced {gwid}: got status for {len(info)} device(s)")
+        else:
+            _LOGGER.info(f"Synced {gwid}: unexpected response {response}")
 
         if len(info) >= 1:
             self._devices_info[gwid]["Information"] = info
@@ -768,7 +771,7 @@ class PanasonicSmartHome(object):
 
             if len(gwid_status[gwid]) < 1:
                 # No status code, it maybe offline or power off of washing machine or network busy
-                # _LOGGER.warning(f"gwid {gwid} is offline {self._devices_info[gwid]}!")
+                _LOGGER.info(f"Synced {gwid}: no status code, skipped this cycle")
                 if device_type in [str(DEVICE_TYPE_WASHING_MACHINE)]:
                     self._devices_info[gwid]["Information"] = self._offline_info(device_type, model_type)
                 continue
@@ -1017,6 +1020,7 @@ class PanasonicSmartHome(object):
         """
         now = datetime.now()
         self._update_timestamp = now.timestamp()
+        _LOGGER.info(f"Sync start at {now.isoformat()}")
 
         await self.async_check_tokens(
             {
@@ -1031,6 +1035,11 @@ class PanasonicSmartHome(object):
             ret = await self.get_devices_with_info()
             self.hass.data[DOMAIN]["api_counts"] = self._api_counts
             self.hass.data[DOMAIN]["api_counts_per_hour"] = self._api_counts_per_hour
+            _LOGGER.info(
+                f"Sync finished, {len(ret)} device(s), "
+                f"api_counts_per_hour={self._api_counts_per_hour}"
+            )
             return ret
-        except:
+        except Exception as e:
+            _LOGGER.exception(f"Sync failed: {e}")
             raise UpdateFailed("Failed while updating device status")
