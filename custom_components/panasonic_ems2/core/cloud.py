@@ -32,6 +32,8 @@ from .const import (
     EXCESS_COMMANDS,
     MODEL_JP_TYPES,
     CLIMATE_PM25,
+    CLIMATE_FULL_UPDATE_INTERVAL,
+    DEVICE_TYPE_CLIMATE,
     DEVICE_TYPE_DEHUMIDIFIER,
     DEVICE_TYPE_FRIDGE,
     DEVICE_TYPE_LIGHT,
@@ -122,6 +124,7 @@ class PanasonicSmartHome(object):
         self._devices_info = {}
         self._commands_info = {}
         self._update_info = {}
+        self._climate_last_full_update = {}
         self._cp_token = ""
         self._refresh_token = None
         self._expires_in = 0
@@ -708,6 +711,8 @@ class PanasonicSmartHome(object):
         if self._api_counts_per_hour < 5:
             get_update_info = True
 
+        now_ts = datetime.now().timestamp()
+
         devices = await self.get_user_devices()
         for cmd in self._commands:
             self._commands_info[cmd['ModelType']] = cmd["JSON"]
@@ -769,7 +774,13 @@ class PanasonicSmartHome(object):
             if device_type == str(DEVICE_TYPE_LIGHT):
                 gwid_status[gwid] = "force update"
 
-            if len(gwid_status[gwid]) < 1:
+            climate_full_refresh_due = False
+            if device_type == str(DEVICE_TYPE_CLIMATE):
+                last_full = self._climate_last_full_update.get(gwid, 0)
+                if (now_ts - last_full) >= CLIMATE_FULL_UPDATE_INTERVAL:
+                    climate_full_refresh_due = True
+
+            if len(gwid_status[gwid]) < 1 and not climate_full_refresh_due:
                 # No status code, it maybe offline or power off of washing machine or network busy
                 _LOGGER.info(f"Synced {gwid}: no status code, skipped this cycle")
                 if device_type in [str(DEVICE_TYPE_WASHING_MACHINE)]:
@@ -778,6 +789,10 @@ class PanasonicSmartHome(object):
 
             if not self.is_supported(model_type):
                 continue
+
+            if climate_full_refresh_due:
+                _LOGGER.info(f"Synced {gwid}: climate full refresh (every {CLIMATE_FULL_UPDATE_INTERVAL}s) due")
+
             command_types = self._get_commands(
                 device_type,
                 model_type,
@@ -785,6 +800,9 @@ class PanasonicSmartHome(object):
             )
             await asyncio.sleep(.1)
             await self.get_device_with_info(device, command_types)
+
+            if device_type == str(DEVICE_TYPE_CLIMATE):
+                self._climate_last_full_update[gwid] = now_ts
         await self.get_user_info()
         await self.get_update_info(get_update_info)
 
