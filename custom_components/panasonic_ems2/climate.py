@@ -108,6 +108,7 @@ class PanasonicClimate(PanasonicBaseEntity, ClimateEntity):
         super().__init__(coordinator, device_gwid, device_id, client, info)
         device_type = info.get("DeviceType", None)
         self._device_type = int(device_type)
+        self._last_hvac_mode = None
 
     @property
     def supported_features(self) -> int:
@@ -197,8 +198,16 @@ class PanasonicClimate(PanasonicBaseEntity, ClimateEntity):
                         break
         return hvac_modes
 
+    async def async_turn_on(self) -> None:
+        """Turn on with the last used mode instead of letting HA pick one."""
+        if self.hvac_mode != HVACMode.OFF:
+            return
+        await self.async_set_hvac_mode(self._last_hvac_mode or HVACMode.COOL)
+
     async def async_set_hvac_mode(self, hvac_mode) -> None:
         """Set new target hvac mode."""
+        if hvac_mode != HVACMode.OFF:
+            self._last_hvac_mode = hvac_mode
         status = self.get_status(self.coordinator.data)
         if self._device_type == DEVICE_TYPE_ERV:
             power = ERV_POWER
